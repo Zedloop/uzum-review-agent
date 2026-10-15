@@ -1,5 +1,3 @@
-import threading
-
 import requests
 from flask import Flask, abort, request
 
@@ -37,7 +35,11 @@ def run_check_endpoint():
     token = request.args.get("token", "")
     if not Config.RUN_TOKEN or token != Config.RUN_TOKEN:
         abort(403)
-    threading.Thread(target=_run_cycle, daemon=True).start()
+    # Fon oqimida (thread) emas, shu so'rovning o'zida ishga tushiramiz -
+    # ba'zi veb-hosting muhitlarida (masalan PythonAnywhere) so'rov tugagach
+    # orqa fondagi thread to'xtatilib qo'yilishi mumkin, shuning uchun
+    # ishonchliroq usul - natijani kutib, shu yerda bajarib tugatish.
+    _run_cycle()
     return "OK", 200
 
 
