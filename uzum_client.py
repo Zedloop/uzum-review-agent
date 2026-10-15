@@ -1,6 +1,7 @@
 import requests
 
 from config import Config
+from uzum_auth import fetch_new_token, get_valid_token
 
 PAGE_SIZE = 50
 MAX_PAGES = 20
@@ -18,12 +19,25 @@ class UzumClient:
     def __init__(self):
         self.base_url = Config.UZUM_API_BASE_URL.rstrip("/")
         self.session = requests.Session()
+        self._set_auth_header(get_valid_token())
+
+    def _set_auth_header(self, token):
         self.session.headers.update(
             {
-                "Authorization": f"Bearer {Config.UZUM_API_KEY}",
+                "Authorization": f"Bearer {token}",
                 "Content-Type": "application/json",
             }
         )
+
+    def _post(self, url, **kwargs):
+        response = self.session.post(url, **kwargs)
+        if response.status_code == 401 and Config.UZUM_USERNAME and Config.UZUM_PASSWORD:
+            # Token muddati tugagan bo'lishi mumkin - login/parol orqali yangi
+            # token olib, so'rovni bir marta qayta sinab ko'ramiz.
+            self._set_auth_header(fetch_new_token())
+            response = self.session.post(url, **kwargs)
+        response.raise_for_status()
+        return response
 
     def fetch_unanswered_reviews(self):
         allowed_shops = {str(shop_id) for shop_id in Config.UZUM_SHOP_IDS}
@@ -37,10 +51,7 @@ class UzumClient:
         # skanerlab, Uzum'ni ortiqcha so'rovlar bilan band qilib qo'yishning oldini oladi.
         for page in range(MAX_PAGES):
             url = f"{self.base_url}/product-reviews"
-            response = self.session.post(
-                url, params={"page": page, "size": PAGE_SIZE}, json={}
-            )
-            response.raise_for_status()
+            response = self._post(url, params={"page": page, "size": PAGE_SIZE}, json={})
             items = response.json().get("payload", [])
             if not items:
                 break
@@ -66,8 +77,5 @@ class UzumClient:
 
     def send_reply(self, review_id, reply_text):
         url = f"{self.base_url}/product-reviews/reply/create"
-        response = self.session.post(
-            url, json=[{"reviewId": int(review_id), "content": reply_text}]
-        )
-        response.raise_for_status()
+        response = self._post(url, json=[{"reviewId": int(review_id), "content": reply_text}])
         return response.json()

@@ -10,6 +10,9 @@ class Config:
         "UZUM_API_BASE_URL", "https://api-seller.uzum.uz/api/seller"
     )
     UZUM_API_KEY = os.getenv("UZUM_API_KEY")
+    UZUM_OAUTH_URL = os.getenv("UZUM_OAUTH_URL", "https://api-seller.uzum.uz/api/oauth/token")
+    UZUM_USERNAME = os.getenv("UZUM_USERNAME")
+    UZUM_PASSWORD = os.getenv("UZUM_PASSWORD")
     UZUM_SHOP_IDS = [
         shop_id.strip()
         for shop_id in os.getenv("UZUM_SHOP_IDS", "").split(",")
@@ -31,7 +34,6 @@ class Config:
 
 def validate():
     required = {
-        "UZUM_API_KEY": Config.UZUM_API_KEY,
         "ANTHROPIC_API_KEY": Config.ANTHROPIC_API_KEY,
         "TELEGRAM_BOT_TOKEN": Config.TELEGRAM_BOT_TOKEN,
         "TELEGRAM_CHAT_ID": Config.TELEGRAM_CHAT_ID,
@@ -39,6 +41,11 @@ def validate():
     missing = [name for name, value in required.items() if not value]
     if not Config.UZUM_SHOP_IDS:
         missing.append("UZUM_SHOP_IDS")
+    # Uzum token kerak: yo UZUM_USERNAME+UZUM_PASSWORD (avtomatik yangilanadi),
+    # yo'q bo'lsa hech bo'lmasa qo'lda kiritilgan UZUM_API_KEY bo'lishi shart.
+    has_login = Config.UZUM_USERNAME and Config.UZUM_PASSWORD
+    if not has_login and not Config.UZUM_API_KEY:
+        missing.append("UZUM_USERNAME+UZUM_PASSWORD (yoki UZUM_API_KEY)")
     if missing:
         raise RuntimeError(
             f".env faylida quyidagilar to'ldirilmagan: {', '.join(missing)}"
