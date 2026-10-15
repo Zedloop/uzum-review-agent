@@ -4,7 +4,7 @@ import requests
 from flask import Flask, abort, request
 
 from config import Config
-from main import run_check, run_draft
+from main import run_draft
 from state_store import acquire_lock, release_lock
 from telegram_bot import API_BASE
 
@@ -24,7 +24,10 @@ def _run_cycle(chat_id=None):
             _send(chat_id, "⏳ Boshqa tekshiruv hozir ketyapti, biroz kutib qayta urinib ko'ring.")
         return
     try:
-        run_check()
+        # Eslatma: run_check() (Telegram getUpdates orqali Approve/Reject tugmasini
+        # tekshirish) endi chaqirilmaydi - webhook rejimida getUpdates ishlamaydi
+        # (409 Conflict) va bu funksiya baribir hech qachon ishlatilmaydi, chunki
+        # javoblar har doim avtomatik yuboriladi, tugma orqali tasdiqlash shart emas.
         run_draft()
         if chat_id:
             _send(chat_id, "✅ Tekshiruv tugadi.")
