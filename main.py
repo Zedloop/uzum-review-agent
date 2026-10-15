@@ -8,7 +8,7 @@ from agents.learner import record_rejection, update_lessons
 from agents.reviewer import review_reply
 from config import Config, validate
 from state_store import acquire_lock, load_state, release_lock, save_state, upsert_review
-from telegram_bot import fetch_decisions, mark_decision, send_conversation
+from telegram_bot import fetch_decisions, mark_decision, send_conversation, send_text
 from uzum_client import UzumClient
 
 
@@ -123,6 +123,7 @@ def run_draft():
         in (None, "rejected")
     ]
     batch = pending_reviews[: Config.MAX_REVIEWS_PER_RUN]
+    failures = []
 
     for review in batch:
         shop_id = str(review["shop"]["id"])
@@ -139,6 +140,7 @@ def run_draft():
                 process_review(uzum, state, review, shop_id, raw_id, key)
         except Exception as e:
             print(f"[{shop_name}] Sharh {raw_id}: XATO, o'tkazib yuborildi - {e}")
+            failures.append(f"[{shop_name}] Sharh {raw_id}: {e}")
 
         time.sleep(1.5)
 
@@ -148,6 +150,18 @@ def run_draft():
         qolgan = len(pending_reviews) - len(batch)
         if qolgan > 0:
             print(f"Yana {qolgan} ta javobsiz sharh navbatda (keyingi 'draft' ishga tushirishda).")
+
+    if failures:
+        summary = "\n".join(failures[:10])
+        more = f"\n... va yana {len(failures) - 10} ta" if len(failures) > 10 else ""
+        try:
+            send_text(
+                f"⚠️ {len(failures)} ta sharhni qayta ishlashda xato yuz berdi:\n{summary}{more}\n\n"
+                "Sabab ko'pincha Claude (Anthropic) balansi tugagani yoki API kaliti muddati "
+                "o'tgani bo'lishi mumkin - tekshirib ko'ring."
+            )
+        except Exception:
+            pass
 
     update_lessons()
 

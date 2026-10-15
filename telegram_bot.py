@@ -6,6 +6,13 @@ API_BASE = f"https://api.telegram.org/bot{Config.TELEGRAM_BOT_TOKEN}"
 TELEGRAM_MAX_LEN = 4096
 
 
+def send_text(text):
+    response = requests.post(
+        f"{API_BASE}/sendMessage", json={"chat_id": Config.TELEGRAM_CHAT_ID, "text": text}
+    )
+    response.raise_for_status()
+
+
 def send_conversation(
     review_id,
     review_text,
