@@ -1,0 +1,12 @@
+.env
+__pycache__/
+*.pyc
+venv/
+.venv/
+data/
+captured_requests.json
+capture_requests.py
+auto_check.ps1
+*.pem
+run.lock
+capture_stop.signal
