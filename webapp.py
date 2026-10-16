@@ -1,6 +1,7 @@
 import requests
 from flask import Flask, abort, request
 
+from bot_listener import _run_cycle_for
 from config import Config
 from main import run_draft
 from state_store import acquire_lock, release_lock
@@ -40,6 +41,24 @@ def run_check_endpoint():
     # orqa fondagi thread to'xtatilib qo'yilishi mumkin, shuning uchun
     # ishonchliroq usul - natijani kutib, shu yerda bajarib tugatish.
     _run_cycle()
+    return "OK", 200
+
+
+@app.route("/telegram-webhook", methods=["POST"])
+def telegram_webhook():
+    # Telegram'ning o'zidan kelayotganini tasdiqlash - setWebhook'da
+    # ro'yxatdan o'tkazilgan maxfiy qiymat shu headerda qaytarilishi shart.
+    secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
+    if not Config.TELEGRAM_WEBHOOK_SECRET or secret != Config.TELEGRAM_WEBHOOK_SECRET:
+        abort(403)
+
+    update = request.get_json(silent=True) or {}
+    msg = update.get("message")
+    if msg:
+        text = (msg.get("text") or "").strip()
+        chat_id = msg["chat"]["id"]
+        if text == "/restart" and str(chat_id) == str(Config.TELEGRAM_CHAT_ID):
+            _run_cycle_for(chat_id)
     return "OK", 200
 
 
