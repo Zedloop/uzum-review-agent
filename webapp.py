@@ -2,6 +2,7 @@ import requests
 from flask import Flask, abort, request
 
 from config import Config
+from heartbeat import load_heartbeat, record_run
 from main import run_draft
 from state_store import acquire_lock, release_lock
 from telegram_bot import API_BASE
@@ -24,7 +25,9 @@ def _run_cycle():
         return
     try:
         run_draft()
+        record_run()
     except Exception as e:
+        record_run(error=e)
         _notify(f"❌ Avtomatik tekshiruvda xato: {e}")
     finally:
         release_lock()
@@ -41,6 +44,15 @@ def run_check_endpoint():
     # ishonchliroq usul - natijani kutib, shu yerda bajarib tugatish.
     _run_cycle()
     return "OK", 200
+
+
+@app.route("/health")
+def health_endpoint():
+    # Hetzner'dagi kuzatuvchi (watchdog) shu orqali agent oxirgi marta
+    # qachon muvaffaqiyatli ishlaganini tekshiradi - faqat vaqtlar, maxfiy
+    # ma'lumot yo'q.
+    hb = load_heartbeat()
+    return {"last_ok": hb.get("last_ok"), "last_error_at": hb.get("last_error_at")}
 
 
 if __name__ == "__main__":
