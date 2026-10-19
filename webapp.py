@@ -53,7 +53,8 @@ def telegram_webhook():
         abort(403)
 
     update = request.get_json(silent=True) or {}
-    msg = update.get("message")
+    # Kanalda yozilgan xabar "channel_post", guruhda esa "message" bo'lib keladi
+    msg = update.get("message") or update.get("channel_post")
     if msg:
         text = (msg.get("text") or "").strip()
         chat_id = msg["chat"]["id"]
