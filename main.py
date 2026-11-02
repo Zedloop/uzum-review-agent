@@ -4,7 +4,8 @@ import time
 from datetime import datetime
 
 from agents.drafter import draft_reply
-from agents.learner import record_rejection, update_lessons
+from agents.learner import get_lessons, record_rejection, update_lessons
+from agents.memory import count_corrections, first_try_stats, record_correction
 from agents.reviewer import review_reply
 from config import Config, validate
 from state_store import acquire_lock, load_state, release_lock, save_state, upsert_review
@@ -47,6 +48,7 @@ def process_review(uzum, state, review, shop_id, raw_id, key):
     conversation.append({"role": "Drafter", "text": reply})
 
     reviewer_approved = False
+    attempts = []  # [(rad etilgan javob, Reviewer sababi), ...] - xotiraga
     for _ in range(Config.MAX_REVISIONS):
         try:
             verdict = review_reply(review_text, rating, reply)
@@ -63,10 +65,19 @@ def process_review(uzum, state, review, shop_id, raw_id, key):
             {"role": "Reviewer", "text": f"🔁 Qayta yozish: {verdict['feedback']}"}
         )
         record_rejection(review_text, rating, reply, verdict["feedback"])
+        attempts.append((reply, verdict["feedback"]))
         reply = draft_reply(
-            review_text, rating, customer_name=customer_name, feedback=verdict["feedback"]
+            review_text, rating, customer_name=customer_name,
+            feedback=verdict["feedback"], previous_draft=reply,
         )
         conversation.append({"role": "Drafter", "text": reply})
+
+    # Xato -> to'g'ri juftligini doimiy xotiraga yozamiz: keyingi o'xshash
+    # sharhda Drafter shu misolni ko'radi va xatoni takrorlamaydi
+    try:
+        record_correction(review_text, rating, attempts, reply, reviewer_approved)
+    except Exception as e:
+        print(f"[{shop_name}] Sharh {raw_id}: tuzatishni xotiraga yozib bo'lmadi ({e})")
 
     uzum.send_reply(raw_id, reply)
     status = "sent"
@@ -88,6 +99,10 @@ def process_review(uzum, state, review, shop_id, raw_id, key):
         shop_id=shop_id,
         shop_name=shop_name,
         review_id=raw_id,
+        # Drafter o'sishini o'lchash uchun (haftalik hisobot)
+        rewrites=len(attempts),
+        reviewer_approved=reviewer_approved,
+        answered_at=time.time(),
     )
     save_state(state)
 
@@ -166,6 +181,43 @@ def run_draft():
             pass
 
     update_lessons()
+    try:
+        _weekly_learning_report(state)
+    except Exception as e:
+        print(f"Haftalik o'sish hisobotini yuborib bo'lmadi: {e}")
+
+
+WEEK = 7 * 86400
+
+
+def _weekly_learning_report(state):
+    """Haftada bir marta: Drafter javoblarining necha foizi Reviewer'dan
+    birinchi urinishda o'tgani - o'z-o'zidan kuchayayotganini ko'rsatadi."""
+    now = time.time()
+    last = state.get("_learning_report_at")
+    if not last:
+        state["_learning_report_at"] = now  # hisob shu paytdan boshlanadi
+        save_state(state)
+        return
+    if now - last < WEEK:
+        return
+    first, total = first_try_stats(state, now - WEEK)
+    prev_first, prev_total = first_try_stats(state, now - 2 * WEEK, now - WEEK)
+    state["_learning_report_at"] = now
+    save_state(state)
+    if not total:
+        return
+    pct = round(100 * first / total)
+    lines = [
+        "📈 Javob agenti o'sishi (oxirgi 7 kun)",
+        f"✅ Birinchi urinishda tasdiqlangan: {first}/{total} ({pct}%)",
+    ]
+    if prev_total:
+        prev_pct = round(100 * prev_first / prev_total)
+        trend = "⬆️" if pct > prev_pct else ("⬇️" if pct < prev_pct else "➡️")
+        lines.append(f"{trend} O'tgan hafta: {prev_pct}%")
+    lines.append(f"🧠 Xotirada {count_corrections()} ta tuzatilgan holat, {len(get_lessons())} ta saboq")
+    send_text("\n".join(lines))
 
 
 def run_check():

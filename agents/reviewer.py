@@ -1,6 +1,7 @@
 import json
 
 from agents._llm import generate_text
+from agents.learner import get_lessons
 from config import Config
 
 SYSTEM_PROMPT = """Siz Uzum Market do'koni javoblarini tekshiruvchi muharrirsiz.
@@ -33,5 +34,15 @@ def review_reply(review_text, rating, draft_reply):
         "Ushbu javobni baholang."
     )
 
-    text = generate_text(prompt, SYSTEM_PROMPT, Config.CLAUDE_MODEL_REVIEWER, json_mode=True)
+    # Drafter'ga berilgan saboqlar Reviewer uchun ham tekshiruv mezoni -
+    # bir marta aniqlangan xato naqshi keyin ham ushlanishi uchun
+    system_prompt = SYSTEM_PROMPT
+    lessons = get_lessons()
+    if lessons:
+        system_prompt += (
+            "\n\nQo'shimcha tekshiruv mezonlari - Drafter'ning o'tgan xatolaridan olingan saboqlar. "
+            "Javob ulardan birini buzsa, rad eting va qaysi saboq buzilganini feedback'da ayting:\n"
+            + "\n".join(f"- {lesson}" for lesson in lessons)
+        )
+    text = generate_text(prompt, system_prompt, Config.CLAUDE_MODEL_REVIEWER, json_mode=True)
     return json.loads(text)
