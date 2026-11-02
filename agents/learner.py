@@ -8,17 +8,23 @@ from config import Config
 DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data")
 FEEDBACK_LOG_FILE = os.path.join(DATA_DIR, "feedback_log.json")
 LESSONS_FILE = os.path.join(DATA_DIR, "lessons.json")
-MAX_LESSONS = 15
+# Qo'lda tasdiqlangan asosiy qoidalar - AI ularni o'zgartirmaydi va o'chirmaydi,
+# faqat ularda yo'q yangi xatolar uchun qo'shimcha saboq (lessons.json) yozadi
+CORE_RULES_FILE = os.path.join(DATA_DIR, "core_rules.json")
+MAX_LESSONS = 10
 RECENT_FEEDBACK_LIMIT = 30
 
 DISTILL_SYSTEM_PROMPT = f"""Siz Uzum Market mijozlar sharhlariga javob yozuvchi "Drafter" AI
 agentini yaxshilash uchun undagi xatolar tarixini tahlil qiluvchi yordamchisiz.
-Sizga ikkita narsa beriladi: (1) hozirgi saboqlar ro'yxati (bo'sh bo'lishi ham mumkin),
-(2) Muharrir (Reviewer) tomonidan yaqinda rad etilgan javoblar va ularning sabablari.
-Vazifangiz: shu ma'lumotlar asosida Drafter har doim yodda tutishi kerak bo'lgan QISQA,
-umumlashtirilgan va amaliy qoidalar ro'yxatini yangilang - takrorlanadigan xato naqshlarini
-bitta aniq qoidaga birlashtiring, bir martalik/tasodifiy xatolarni e'tiborsiz qoldiring.
+Sizga uchta narsa beriladi: (1) ASOSIY QOIDALAR - o'zgarmaydi, ularni qaytadan yozmang;
+(2) hozirgi QO'SHIMCHA saboqlar ro'yxati (bo'sh bo'lishi ham mumkin);
+(3) Muharrir (Reviewer) tomonidan yaqinda rad etilgan javoblar va ularning sabablari.
+Vazifangiz: faqat QO'SHIMCHA saboqlar ro'yxatini yangilang - asosiy qoidalarda allaqachon
+aytilgan narsani takrorlamang, faqat ularda yo'q takrorlanadigan xato naqshlari uchun QISQA,
+aniq va amaliy qoida yozing (qaysi so'z/qurilma noto'g'ri va o'rniga qaysi biri to'g'ri);
+bir martalik/tasodifiy xatolarni e'tiborsiz qoldiring.
 Ro'yxat ko'pi bilan {MAX_LESSONS} ta qoidadan iborat bo'lsin, har biri bitta qisqa jumla.
+Yangi naqsh bo'lmasa, hozirgi qo'shimcha saboqlarni o'zgarishsiz qaytaring.
 Faqat quyidagi JSON formatida javob bering, boshqa hech narsa yozmang:
 {{"lessons": ["qoida 1", "qoida 2", ...]}}"""
 
@@ -51,6 +57,10 @@ def record_rejection(review_text, rating, draft, feedback):
     _save_json(FEEDBACK_LOG_FILE, log)
 
 
+def get_core_rules():
+    return _load_json(CORE_RULES_FILE, {"rules": []}).get("rules", [])
+
+
 def get_lessons():
     data = _load_json(LESSONS_FILE, {"lessons": []})
     return data.get("lessons", [])
@@ -70,9 +80,11 @@ def update_lessons():
         for item in recent
     )
     current_text = "\n".join(f"- {lesson}" for lesson in current_lessons) or "(hozircha yo'q)"
+    core_text = "\n".join(f"- {rule}" for rule in get_core_rules()) or "(yo'q)"
 
     prompt = (
-        f"Hozirgi saboqlar ro'yxati:\n{current_text}\n\n"
+        f"ASOSIY QOIDALAR (o'zgarmaydi):\n{core_text}\n\n"
+        f"Hozirgi qo'shimcha saboqlar ro'yxati:\n{current_text}\n\n"
         f"Yaqinda rad etilgan javoblar:\n{feedback_text}\n\n"
         "Yangilangan saboqlar ro'yxatini tuzing."
     )

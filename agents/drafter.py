@@ -1,5 +1,5 @@
 from agents._llm import generate_text
-from agents.learner import get_lessons
+from agents.learner import get_core_rules, get_lessons
 from config import Config
 
 SYSTEM_PROMPT = """Siz Uzum Market'dagi do'kon uchun mijozlar sharhlariga javob yozadigan yordamchisiz.
@@ -38,11 +38,17 @@ def draft_reply(review_text, rating, customer_name=None, feedback=None):
         )
 
     system_prompt = SYSTEM_PROMPT
+    core_rules = get_core_rules()
+    if core_rules:
+        system_prompt += (
+            "\n\nASOSIY QOIDALAR (bularga albatta rioya qiling):\n"
+            + "\n".join(f"{i}. {rule}" for i, rule in enumerate(core_rules, 1))
+        )
     lessons = get_lessons()
     if lessons:
         lessons_text = "\n".join(f"- {lesson}" for lesson in lessons)
         system_prompt += (
-            "\n\nO'TGAN XATOLARDAN OLINGAN SABOQLAR (bularga albatta rioya qiling):\n"
+            "\n\nO'TGAN XATOLARDAN OLINGAN QO'SHIMCHA SABOQLAR (bularga ham rioya qiling):\n"
             f"{lessons_text}"
         )
 
