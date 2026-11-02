@@ -1,6 +1,5 @@
 from agents._llm import generate_text
 from agents.learner import get_lessons
-from agents.memory import format_examples, relevant_corrections
 from config import Config
 
 SYSTEM_PROMPT = """Siz Uzum Market'dagi do'kon uchun mijozlar sharhlariga javob yozadigan yordamchisiz.
@@ -26,20 +25,13 @@ mijozlarga takrorlamang, har bir javob o'ziga xos va tirik ohangda bo'lsin.
 Faqat javob matnini yozing, boshqa hech narsa (izoh, sarlavha) qo'shmang."""
 
 
-def draft_reply(review_text, rating, customer_name=None, feedback=None, previous_draft=None):
+def draft_reply(review_text, rating, customer_name=None, feedback=None):
     name_line = f"Mijozning ismi: {customer_name}" if customer_name else "Mijozning ismi noma'lum."
-    prompt = ""
-    # O'xshash sharhlarda ilgari tuzatilgan xatolar - aniq misollar
-    examples = format_examples(relevant_corrections(review_text, rating))
-    if examples:
-        prompt += examples + "\n\n=== YANGI SHARH ===\n"
-    prompt += (
+    prompt = (
         f'Mijoz sharhi (baho: {rating}/5):\n"{review_text}"\n\n'
         f"{name_line}\n\nUshbu sharhga javob yozing."
     )
     if feedback:
-        if previous_draft:
-            prompt += f'\n\nSizning oldingi qoralamangiz:\n"{previous_draft}"'
         prompt += (
             f"\n\nOldingi qoralama rad etildi. Muharrir izohi: {feedback}\n"
             "Shu izohni hisobga olib javobni qaytadan yozing."

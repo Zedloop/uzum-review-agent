@@ -8,27 +8,16 @@ from config import Config
 DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data")
 FEEDBACK_LOG_FILE = os.path.join(DATA_DIR, "feedback_log.json")
 LESSONS_FILE = os.path.join(DATA_DIR, "lessons.json")
-MAX_LESSONS = 25
+MAX_LESSONS = 15
 RECENT_FEEDBACK_LIMIT = 30
-# Har siklda emas - shuncha yangi rad etish to'plangach saboqlar yangilanadi
-# (har safar qayta yozilaverib, eski saboqlar yo'qolib ketmasligi uchun)
-DISTILL_EVERY = 5
-# Yangi ro'yxat eskisidan shuncha qoidadan ko'proq qisqa bo'lsa - AI saboqlarni
-# "unutgan" deb hisoblab, yangilanish qabul qilinmaydi
-MAX_LESSONS_DROP = 2
 
 DISTILL_SYSTEM_PROMPT = f"""Siz Uzum Market mijozlar sharhlariga javob yozuvchi "Drafter" AI
 agentini yaxshilash uchun undagi xatolar tarixini tahlil qiluvchi yordamchisiz.
 Sizga ikkita narsa beriladi: (1) hozirgi saboqlar ro'yxati (bo'sh bo'lishi ham mumkin),
 (2) Muharrir (Reviewer) tomonidan yaqinda rad etilgan javoblar va ularning sabablari.
-Vazifangiz: hozirgi ro'yxatni YANGILASH, uni noldan qayta yozish EMAS:
-- mavjud saboqlarni saqlang - ular avvalgi xatolardan olingan, o'chirmang;
-- yangi rad etishlarda mavjud saboqlarda yo'q xato naqshi bo'lsa - yangi saboq qo'shing;
-- yangi misollar mavjud saboqni aniqlashtirsa - o'sha saboqni aniqroq qilib qayta yozing;
-- bir xil ma'nodagi saboqlarni bittaga birlashtirish mumkin, lekin ma'no yo'qolmasin;
-- "diqqat bilan tekshiring" kabi umumiy gaplar emas - aniq, amaliy qoida yozing
-  (qaysi so'z/qurilma noto'g'ri va o'rniga qaysi biri to'g'ri);
-- saboq ichida taqiqlangan iborani "to'g'ri namuna" sifatida keltirmang.
+Vazifangiz: shu ma'lumotlar asosida Drafter har doim yodda tutishi kerak bo'lgan QISQA,
+umumlashtirilgan va amaliy qoidalar ro'yxatini yangilang - takrorlanadigan xato naqshlarini
+bitta aniq qoidaga birlashtiring, bir martalik/tasodifiy xatolarni e'tiborsiz qoldiring.
 Ro'yxat ko'pi bilan {MAX_LESSONS} ta qoidadan iborat bo'lsin, har biri bitta qisqa jumla.
 Faqat quyidagi JSON formatida javob bering, boshqa hech narsa yozmang:
 {{"lessons": ["qoida 1", "qoida 2", ...]}}"""
@@ -70,7 +59,7 @@ def get_lessons():
 def update_lessons():
     """To'plangan rad etishlar asosida saboqlar ro'yxatini AI yordamida yangilaydi."""
     log = _load_json(FEEDBACK_LOG_FILE, [])
-    if len(log) < DISTILL_EVERY:
+    if not log:
         return
 
     current_lessons = get_lessons()
@@ -96,14 +85,6 @@ def update_lessons():
         lessons = result.get("lessons", [])[:MAX_LESSONS]
     except Exception as e:
         print(f"Saboqlarni yangilashda xato: {e}")
-        return
-
-    if lessons and len(lessons) < len(current_lessons) - MAX_LESSONS_DROP:
-        print(f"Saboqlar yangilanmadi: yangi ro'yxat {len(lessons)} ta, eskisi {len(current_lessons)} ta - "
-              "eski saboqlar yo'qolib ketmasligi uchun rad etildi.")
-        # Har siklda qayta urinib API'ga pul sarflamaslik uchun jurnalni
-        # tozalaymiz - bu holatlar memory.py'da aniq misol sifatida saqlangan
-        _save_json(FEEDBACK_LOG_FILE, [])
         return
 
     if lessons:
