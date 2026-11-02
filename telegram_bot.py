@@ -23,40 +23,40 @@ def send_conversation(
     retry=False,
     needs_approval=True,
     reviewer_approved=True,
+    product=None,
+    customer=None,
 ):
-    header_lines = [f"🏪 Do'kon: {shop_id}"] if shop_id else []
+    """Bir qarashda tushunarli xabar: baho, mahsulot, mijoz nima dedi, biz
+    nima javob berdik. Drafter/Reviewer ichki suhbati ko'rsatilmaydi - faqat
+    necha marta qayta yozilgani."""
+    rating = int(rating or 0)
+    belgi = "🔴" if rating <= 2 else "🟡" if rating == 3 else "🟢"
+    sarlavha = f"{belgi} {'⭐' * rating}{'☆' * (5 - rating)} {rating}/5"
+    if shop_id:
+        sarlavha += f" · {shop_id}"
+    lines = [sarlavha]
+    if product:
+        lines.append(f"📦 {product}")
+    if customer:
+        lines.append(f"👤 {customer}")
     if retry:
-        header_lines.append("🔁 Qayta yozilgan javob (avvalgisi rad etilgan edi)")
-    header_lines += [
-        f"🆕 Yangi sharh (baho: {rating}/5)",
-        f'"{review_text}"',
-        "",
-        "💬 Drafter va Reviewer suhbati:",
-    ]
-    header = "\n".join(header_lines)
+        lines.append("🔁 Qayta yozilgan javob (avvalgisi rad etilgan edi)")
 
-    footer_lines = [f'\n✅ Yakuniy javob:\n"{final_reply}"']
-    if not needs_approval:
-        if reviewer_approved:
-            footer_lines.append("\n🤖 Reviewer tasdiqladi — Uzum'ga avtomatik yuborildi.")
-        else:
-            footer_lines.append(
-                "\n🤖 Reviewer to'liq tasdiqlamadi, lekin eng so'nggi javob baribir "
-                "Uzum'ga avtomatik yuborildi."
-            )
-    footer = "\n".join(footer_lines)
+    if review_text.startswith("(Mijoz matn qoldirmagan"):
+        lines += ["", "💬 Mijoz: faqat baho qo'ygan, matn yozmagan"]
+    else:
+        lines += ["", "💬 Mijoz yozdi:", review_text]
+    lines += ["", "✍️ Javobimiz:", final_reply, ""]
 
-    conversation_text = "".join(
-        f"\n▫️ {turn['role']}: {turn['text']}" for turn in conversation
-    )
+    qayta = sum(1 for turn in conversation if turn.get("role") == "Reviewer" and "Qayta" in turn.get("text", ""))
+    if needs_approval:
+        lines.append("⏳ Tasdiqlashingizni kutmoqda")
+    elif reviewer_approved:
+        lines.append("✅ Uzum'ga yuborildi" + (f" · AI {qayta} marta qayta yozdi" if qayta else ""))
+    else:
+        lines.append(f"⚠️ Uzum'ga yuborildi, lekin AI {qayta} marta qayta yozib ham to'liq tasdiqlamadi — tekshirib qo'ying")
 
-    budget = TELEGRAM_MAX_LEN - len(header) - len(footer) - 40
-    if budget > 0 and len(conversation_text) > budget:
-        conversation_text = conversation_text[:budget] + "\n... (qisqartirildi)"
-    elif budget <= 0:
-        conversation_text = "\n(suhbat juda uzun, ko'rsatilmadi)"
-
-    text = f"{header}{conversation_text}{footer}"
+    text = "\n".join(lines)
     if len(text) > TELEGRAM_MAX_LEN:
         text = text[: TELEGRAM_MAX_LEN - 20] + "\n... (qisqartirildi)"
 

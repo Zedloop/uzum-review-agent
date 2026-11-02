@@ -102,6 +102,8 @@ def process_review(uzum, state, review, shop_id, raw_id, key):
             retry=is_retry,
             needs_approval=False,
             reviewer_approved=reviewer_approved,
+            product=(review.get("product") or {}).get("productTitle"),
+            customer=customer_name,
         )
     except Exception as e:
         print(f"[{shop_name}] Sharh {raw_id}: Telegram'ga xabar yuborilmadi ({e}), lekin Uzum'ga javob yuborilgan edi.")
